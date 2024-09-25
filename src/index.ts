@@ -1,48 +1,134 @@
 import * as dotenv from 'dotenv';
-import {ChatOpenAI} from '@langchain/openai'
-
+import {ChatOpenAI} from '@langchain/openai';
 import { HumanMessage,SystemMessage } from '@langchain/core/messages';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate, PromptTemplate } from '@langchain/core/prompts';
-
+import { InMemoryChatMessageHistory } from '@langchain/core/chat_history';
+import { RunnableWithMessageHistory } from '@langchain/core/runnables';
+import {stdin,stdout} from 'node:process'
+import * as readline from 'readline/promises';
 dotenv.config();
 
-const model = new ChatOpenAI({model: 'gpt-4o-mini'});
+let basicUsage = async ()=> {
 
-const messages = [
-    new SystemMessage("Translate from english to spanish"),
-    new HumanMessage("Hello world!")
-];
+    const model = new ChatOpenAI({model: 'gpt-4o-mini'});
 
-const parser = new StringOutputParser();
-const chain = model.pipe(parser);
+    const messages = [
+        new SystemMessage("Translate from english to spanish"),
+        new HumanMessage("Hello world!")
+    ];
 
-let result = await chain.invoke(messages);
-let result2 = await model.invoke(messages);
+    const parser = new StringOutputParser();
+    const chain = model.pipe(parser);
 
-console.log(result2);
-console.log(result);
+    let result = await chain.invoke(messages);
+    let result2 = await model.invoke(messages);
 
-let systemTemplae = 'Translate the following into {language}';
+    console.log(result2);
+    console.log(result);
 
-let template = ChatPromptTemplate.fromMessages([
-    ["system",systemTemplae],
-    ["user",'{text}']
-]);
+    let systemTemplae = 'Translate the following into {language}';
+
+    let template = ChatPromptTemplate.fromMessages([
+        ["system",systemTemplae],
+        ["user",'{text}']
+    ]);
 
 
-let promptValue = await template.invoke({
-    language: 'russian',
-    text: 'Hello world!'
-});
+    let promptValue = await template.invoke({
+        language: 'russian',
+        text: 'Hello world!'
+    });
 
-console.log(promptValue);
+    console.log(promptValue);
 
-let chain2 = template.pipe(model).pipe(parser);
+    let chain2 = template.pipe(model).pipe(parser);
 
-let result3 = await chain2.invoke({
-    language: 'russian',
-    text: "Hello world"
-});
+    let result3 = await chain2.invoke({
+        language: 'russian',
+        text: "Hello world"
+    });
 
-console.log(result3);
+    console.log(result3);
+}
+
+const chatbot = async () => {
+    const chat = new ChatOpenAI({
+        model: 'gpt-4o-mini',
+        temperature: 0
+    });
+
+    let response = await chat.invoke([
+        new HumanMessage("Hello how are you?, i'm jerry")
+    ]);
+    console.log(response);
+
+    await chat.invoke([new HumanMessage({ content: "What's my name?" })]);
+}
+
+const  messageHistories: Record<string,InMemoryChatMessageHistory> = {};
+
+const initChatWithMemory = async () => {
+    const model = new ChatOpenAI({
+        model: 'gpt-4o-mini',
+        temperature: 0
+    });
+
+    const prompt = ChatPromptTemplate.fromMessages([
+        ["system",'Eres un asistente util que recuerda todos los detalles que el usuario comparte contigo'],
+        ["placeholder",'{chat_history}'],
+        ["human", '{input}']
+    ])
+
+    const chain = prompt.pipe(model);
+
+    const withMessageHistoryRunnable = new RunnableWithMessageHistory({
+        runnable: chain,
+        getMessageHistory: async (sessionId) => {
+            if (messageHistories[sessionId] === undefined) {
+                messageHistories[sessionId] = new InMemoryChatMessageHistory();
+            }
+            return messageHistories[sessionId];
+        },
+        inputMessagesKey: 'input',
+        historyMessagesKey: "chat_history"
+    });
+
+    return withMessageHistoryRunnable;
+}
+
+var startChatBotWithMemory = async (sessionId:string) => {
+    var chatWithMemory = await initChatWithMemory();
+    
+    const rl = readline.createInterface({input: stdin,output:stdout});
+
+    const config = {
+        configurable: {
+            sessionId:sessionId
+        }
+    }
+
+    let entry = '';
+    
+    while (entry !== 'close') {
+        
+        entry = await rl.question("Input:");
+        console.log("User input:",entry);
+
+        if (entry !== 'close') {
+            const response = await chatWithMemory.invoke({
+                                                        input: entry
+            },config);
+
+            console.log("AI response",response.content);
+        }
+    }
+
+    rl.close();
+}
+
+await startChatBotWithMemory("test123");
+ //await chatbot();
+
+
+ 
