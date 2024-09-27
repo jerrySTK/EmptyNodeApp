@@ -11,6 +11,8 @@ import * as readline from 'readline/promises';
 import { ReactAgentCustom } from './agent.js';
 
 import { pull } from "langchain/hub";
+import { RagWebClient } from './rag.js';
+import { ReactAgentMultiToolCustom } from './agent-multitool.js';
 dotenv.config();
 
 let basicUsage = async ()=> {
@@ -131,30 +133,91 @@ while (entry !== 'close') {
 rl.close();
 }
 
-//await startChatBotWithMemory("test123");
-//await chatbot();
 
 var testReactAgent = async () => {
-var agent = new ReactAgentCustom();
-
-var graph = agent.getGraph();
-
-var response = await graph.invoke({
-    messages: [
-        new HumanMessage("Cual es el nombre del recien electo presidente de Mexico?")
-    ]
-});
-
-console.log("AI Message: ", response.messages[response.messages.length - 1].content);
+    var agent = new ReactAgentCustom();
+    
+    var graph = agent.getGraph();
+    
+    var response = await graph.invoke({
+        messages: [
+            new HumanMessage("Cual es el nombre del recien electo presidente de Mexico?")
+        ]
+    });
+    
+    console.log("AI Message: ", response.messages[response.messages.length - 1].content);
 }
 
 
 var customizingPrompt = async () => {
-const ragPrompt = await pull<ChatPromptTemplate>("rlm/rag-prompt");
-ragPrompt.promptMessages.push(new SystemMessage('Answer everything in spanish'))
-
+    const ragPrompt = await pull<ChatPromptTemplate>("rlm/rag-prompt");
+    ragPrompt.promptMessages.push(new SystemMessage('Answer everything in spanish'))
+    
 }
 
-await customizingPrompt();
-
+//await customizingPrompt();
+//await startChatBotWithMemory("test123");
+//await chatbot();
 //await testReactAgent();
+
+
+var testReacAgentMultiTool = async () => {
+    
+    const rl = readline.createInterface({input: stdin,output:stdout});
+    var agent = new ReactAgentMultiToolCustom();
+    
+    var graph = await agent.getGraph();
+  
+    let entry = '';
+    
+    while (entry !== 'close') {
+        
+        entry = await rl.question("Input:");
+        console.log("User input:",entry);
+    
+        if (entry !== 'close') {
+            var response = await graph.invoke({
+                messages: [
+                    new HumanMessage(entry)
+                ]
+            });
+            
+            console.log("AI Message: ", response.messages[response.messages.length - 1].content);
+        }
+    }
+    
+    rl.close();
+}
+
+var testRag = async () => {
+  
+    
+    const rl = readline.createInterface({input: stdin,output:stdout});
+  
+    const ragWebClient = new RagWebClient('https://uach.mx/pregrado/licenciatura-en-artes-visuales/');
+
+    const chain = await ragWebClient.getChain();
+
+  
+    let entry = '';
+    
+    while (entry !== 'close') {
+        
+        entry = await rl.question("Input:");
+        console.log("User input:",entry);
+    
+        if (entry !== 'close') {
+            if (chain) {
+                var response = await chain.invoke(entry);
+                console.log(response);
+            }
+        }
+    }
+    
+    rl.close();
+}
+
+await testReacAgentMultiTool();
+
+
+
